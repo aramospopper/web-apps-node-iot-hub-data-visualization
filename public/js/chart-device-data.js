@@ -12,19 +12,22 @@ $(document).ready(() => {
       this.deviceId = deviceId;
       this.maxLen = 50;
       this.timeData = new Array(this.maxLen);
-      this.temperatureData = new Array(this.maxLen);
-      this.humidityData = new Array(this.maxLen);
+      this.soundData = new Array(this.maxLen);
+      this.doorStateData = new Array(this.maxLen);
+	  this.lightData = new Array(this.maxLen);
     }
 
-    addData(time, temperature, humidity) {
+    addData(time, sound, doorState, light) {
       this.timeData.push(time);
-      this.temperatureData.push(temperature);
-      this.humidityData.push(humidity || null);
+      this.soundData.push(sound);
+      this.doorStateData.push(doorState);
+	  this.lightData.push(light);
 
       if (this.timeData.length > this.maxLen) {
         this.timeData.shift();
-        this.temperatureData.shift();
-        this.humidityData.shift();
+        this.soundData.shift();
+        this.doorStateData.shift();
+		this.lightData.shift();
       }
     }
   }
@@ -55,64 +58,39 @@ $(document).ready(() => {
 
   // Define the chart axes
   const chartData = {
-    datasets: [
-      {
-        fill: false,
-        label: 'Temperature',
-        yAxisID: 'Temperature',
-        borderColor: 'rgba(255, 204, 0, 1)',
-        pointBoarderColor: 'rgba(255, 204, 0, 1)',
-        backgroundColor: 'rgba(255, 204, 0, 0.4)',
-        pointHoverBackgroundColor: 'rgba(255, 204, 0, 1)',
-        pointHoverBorderColor: 'rgba(255, 204, 0, 1)',
-        spanGaps: true,
-      },
-      {
-        fill: false,
-        label: 'Humidity',
-        yAxisID: 'Humidity',
-        borderColor: 'rgba(24, 120, 240, 1)',
-        pointBoarderColor: 'rgba(24, 120, 240, 1)',
-        backgroundColor: 'rgba(24, 120, 240, 0.4)',
-        pointHoverBackgroundColor: 'rgba(24, 120, 240, 1)',
-        pointHoverBorderColor: 'rgba(24, 120, 240, 1)',
-        spanGaps: true,
-      }
-    ]
+	datasets: [
+	  {
+		label: 'Sound',
+		borderColor: 'rgba(255, 99, 132, 1)',
+		fill: false,
+		spanGaps: true
+	  },
+	  {
+		label: 'Door State',
+		borderColor: 'rgba(0, 200, 0, 1)',
+		fill: false,
+		spanGaps: true
+	  },
+	  {
+		label: 'Light',
+		borderColor: 'rgba(255, 204, 0, 1)',
+		fill: false,
+		spanGaps: true
+	  }
+	]
   };
-
+  
   const chartOptions = {
-    scales: {
-      yAxes: [{
-        id: 'Temperature',
-        type: 'linear',
-        scaleLabel: {
-          labelString: 'Temperature (ºC)',
-          display: true,
-        },
-        position: 'left',
-        ticks: {
-          suggestedMin: 0,
-          suggestedMax: 100,
-          beginAtZero: true
-        }
-      },
-      {
-        id: 'Humidity',
-        type: 'linear',
-        scaleLabel: {
-          labelString: 'Humidity (%)',
-          display: true,
-        },
-        position: 'right',
-        ticks: {
-          suggestedMin: 0,
-          suggestedMax: 100,
-          beginAtZero: true
-        }
-      }]
-    }
+	scales: {
+	  yAxes: [{
+		id: 'Values',
+		type: 'linear',
+		position: 'left',
+		ticks: { beginAtZero: true }
+	  }]
+	}
   };
+  
 
   // Get the context of the canvas element we want to select
   const ctx = document.getElementById('iotChart').getContext('2d');
@@ -130,11 +108,14 @@ $(document).ready(() => {
   const deviceCount = document.getElementById('deviceCount');
   const listOfDevices = document.getElementById('listOfDevices');
   function OnSelectionChange() {
-    const device = trackedDevices.findDevice(listOfDevices[listOfDevices.selectedIndex].text);
-    chartData.labels = device.timeData;
-    chartData.datasets[0].data = device.temperatureData;
-    chartData.datasets[1].data = device.humidityData;
-    myLineChart.update();
+	const device = trackedDevices.findDevice(listOfDevices[listOfDevices.selectedIndex].text);
+  
+	chartData.labels = device.timeData;
+	chartData.datasets[0].data = device.soundData;
+	chartData.datasets[1].data = device.doorStateData;
+	chartData.datasets[2].data = device.lightData;
+  
+	myLineChart.update();
   }
   listOfDevices.addEventListener('change', OnSelectionChange, false);
 
@@ -150,21 +131,36 @@ $(document).ready(() => {
       console.log(messageData);
 
       // time and either temperature or humidity are required
-      if (!messageData.MessageDate || (!messageData.IotData.temperature && !messageData.IotData.humidity)) {
-        return;
-      }
+      // Ensure message has your required fields
+	  if (
+  		messageData.MessageDate == null ||
+  		messageData.IotData.sound == null ||
+  		messageData.IotData.doorState == null ||
+  		messageData.IotData.light == null
+	) {
+  		console.warn("Rejected message due to missing fields:", messageData);
+  		return;
+	}
 
-      // find or add device to list of tracked devices
-      const existingDeviceData = trackedDevices.findDevice(messageData.DeviceId);
+	  const existingDeviceData = trackedDevices.findDevice(messageData.DeviceId);
 
-      if (existingDeviceData) {
-        existingDeviceData.addData(messageData.MessageDate, messageData.IotData.temperature, messageData.IotData.humidity);
-      } else {
-        const newDeviceData = new DeviceData(messageData.DeviceId);
-        trackedDevices.devices.push(newDeviceData);
-        const numDevices = trackedDevices.getDevicesCount();
-        deviceCount.innerText = numDevices === 1 ? `${numDevices} device` : `${numDevices} devices`;
-        newDeviceData.addData(messageData.MessageDate, messageData.IotData.temperature, messageData.IotData.humidity);
+	  if (existingDeviceData) {
+	    existingDeviceData.addData(
+		  messageData.MessageDate,
+		  messageData.IotData.sound,
+		  messageData.IotData.doorState,
+		  messageData.IotData.light
+	  );
+	  } else {
+	    const newDeviceData = new DeviceData(messageData.DeviceId);
+	    trackedDevices.devices.push(newDeviceData);
+
+	    newDeviceData.addData(
+		  messageData.MessageDate,
+		  messageData.IotData.sound,
+		  messageData.IotData.doorState,
+		  messageData.IotData.light
+	    );
 
         // add device to the UI list
         const node = document.createElement('option');
