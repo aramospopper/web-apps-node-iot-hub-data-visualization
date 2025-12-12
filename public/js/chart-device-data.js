@@ -11,6 +11,7 @@ $(document).ready(() => {
     constructor(deviceId) {
       this.deviceId = deviceId;
       this.maxLen = 50;
+	  // Stores data from sound, door state, and light
       this.timeData = new Array(this.maxLen);
       this.soundData = new Array(this.maxLen);
       this.doorStateData = new Array(this.maxLen);
@@ -56,51 +57,84 @@ $(document).ready(() => {
 
   const trackedDevices = new TrackedDevices();
 
-  // Define the chart axes
-  const chartData = {
-	datasets: [
-	  {
-		label: 'Sound',
-		borderColor: 'rgba(255, 99, 132, 1)',
-		fill: false,
-		spanGaps: true
-	  },
-	  {
-		label: 'Door State',
-		borderColor: 'rgba(0, 200, 0, 1)',
-		fill: false,
-		spanGaps: true
-	  },
-	  {
-		label: 'Light',
-		borderColor: 'rgba(255, 204, 0, 1)',
-		fill: false,
-		spanGaps: true
-	  }
-	]
-  };
-  
-  const chartOptions = {
+  // Create a canvas for the graph
+  const container = document.createElement("div");
+  container.style.display = "flex";
+  container.style.flexDirection = "column";
+  container.style.gap = "30px";
+  container.style.width = "100%";
+
+  // Sound graph
+  const soundCanvas = document.createElement("canvas");
+  soundCanvas.id = "soundChart";
+  container.appendChild(soundCanvas);
+
+  // Door State graph
+  const doorCanvas = document.createElement("canvas");
+  doorCanvas.id = "doorChart";
+  container.appendChild(doorCanvas);
+
+  // Light graph
+  const lightCanvas = document.createElement("canvas");
+  lightCanvas.id = "lightChart";
+  container.appendChild(lightCanvas);
+
+  // Attach to body (or some other container)
+  document.body.appendChild(container);
+
+
+// Three separate charts
+  const baseOptions = {
 	scales: {
 	  yAxes: [{
-		id: 'Values',
-		type: 'linear',
-		position: 'left',
 		ticks: { beginAtZero: true }
 	  }]
-	}
+	},
+	spanGaps: true
   };
   
-
-  // Get the context of the canvas element we want to select
-  const ctx = document.getElementById('iotChart').getContext('2d');
-  const myLineChart = new Chart(
-    ctx,
-    {
-      type: 'line',
-      data: chartData,
-      options: chartOptions,
-    });
+  // Sound chart
+  const soundChart = new Chart(document.getElementById('soundChart').getContext('2d'), {
+	type: 'line',
+	data: {
+	  labels: [],
+	  datasets: [{
+		label: 'Sound',
+		borderColor: 'rgba(255, 99, 132, 1)',
+		fill: false
+	  }]
+	},
+	options: baseOptions
+  });
+  
+  // Door State chart
+  const doorChart = new Chart(document.getElementById('doorChart').getContext('2d'), {
+	type: 'line',
+	data: {
+	  labels: [],
+	  datasets: [{
+		label: 'Door State',
+		borderColor: 'rgba(0, 200, 0, 1)',
+		fill: false
+	  }]
+	},
+	options: baseOptions
+  });
+  
+  // Light chart
+  const lightChart = new Chart(document.getElementById('lightChart').getContext('2d'), {
+	type: 'line',
+	data: {
+	  labels: [],
+	  datasets: [{
+		label: 'Light',
+		borderColor: 'rgba(255, 204, 0, 1)',
+		fill: false
+	  }]
+	},
+	options: baseOptions
+  });
+  
 
   // Manage a list of devices in the UI, and update which device data the chart is showing
   // based on selection
@@ -110,12 +144,18 @@ $(document).ready(() => {
   function OnSelectionChange() {
 	const device = trackedDevices.findDevice(listOfDevices[listOfDevices.selectedIndex].text);
   
-	chartData.labels = device.timeData;
-	chartData.datasets[0].data = device.soundData;
-	chartData.datasets[1].data = device.doorStateData;
-	chartData.datasets[2].data = device.lightData;
+	// Send corresponding data to each chart and update
+	soundChart.data.labels = device.timeData;
+	soundChart.data.datasets[0].data = device.soundData;
+	soundChart.update();
   
-	myLineChart.update();
+	doorChart.data.labels = device.timeData;
+	doorChart.data.datasets[0].data = device.doorStateData;
+	doorChart.update();
+  
+	lightChart.data.labels = device.timeData;
+	lightChart.data.datasets[0].data = device.lightData;
+	lightChart.update();
   }
   listOfDevices.addEventListener('change', OnSelectionChange, false);
 
@@ -130,7 +170,7 @@ $(document).ready(() => {
       const messageData = JSON.parse(message.data);
       console.log(messageData);
 
-      // time and either temperature or humidity are required
+      // time and one of the Iot data fields are required
       // Ensure message has your required fields
 	  if (
   		messageData.MessageDate == null ||
@@ -175,8 +215,11 @@ $(document).ready(() => {
           OnSelectionChange();
         }
       }
-
-      myLineChart.update();
+	  
+	  // update charts
+      soundChart.update();
+      doorChart.update();
+      lightChart.update();
     } catch (err) {
       console.error(err);
     }
